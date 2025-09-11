@@ -158,7 +158,7 @@ class ControlnetCogVideoXPipeline(DiffusionPipeline, CogVideoXLoraLoaderMixin):
     
     def prepare_controlnet_frames(self, controlnet_frames, height, width, do_classifier_free_guidance):
         prepared_frames = prepare_frames(controlnet_frames, (height, width))
-        controlnet_encoded_frames = prepared_frames.to(dtype=self.vae.dtype, device='cuda')
+        controlnet_encoded_frames = prepared_frames.to(dtype=self.vae.dtype, device=self._execution_device)
         controlnet_encoded_frames = torch.cat([controlnet_encoded_frames] * 2) if do_classifier_free_guidance else controlnet_encoded_frames
         return controlnet_encoded_frames.contiguous()
 

@@ -768,7 +768,7 @@ class CogVideoXImageToVideoControlnetPipeline(DiffusionPipeline, CogVideoXLoraLo
             device, dtype=prompt_embeds.dtype
         )
 
-        latent_channels = self.transformer.config.in_channels // 2
+        latent_channels = self.vae.config.latent_channels
         latents, image_latents = self.prepare_latents(
             image,
             batch_size * num_videos_per_prompt,
@@ -816,8 +816,8 @@ class CogVideoXImageToVideoControlnetPipeline(DiffusionPipeline, CogVideoXLoraLo
 
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-                latent_image_input = torch.cat([image_latents] * 2) if do_classifier_free_guidance else image_latents
-                latent_model_input = torch.cat([latent_model_input, latent_image_input], dim=2)
+                # latent_image_input = torch.cat([image_latents] * 2) if do_classifier_free_guidance else image_latents
+                # latent_model_input = torch.cat([latent_model_input, latent_image_input], dim=2)
 
                 # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
                 timestep = t.expand(latent_model_input.shape[0])

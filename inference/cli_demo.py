@@ -28,7 +28,8 @@ from diffusers import (
 from diffusers.utils import export_to_video, load_video
 from controlnet_aux import HEDdetector, CannyDetector
 
-from controlnet_pipeline import ControlnetCogVideoXPipeline
+# from controlnet_pipeline import ControlnetCogVideoXPipeline
+from controlnet_img2vid_pipeline import CogVideoXImageToVideoControlnetPipeline
 from cogvideo_transformer import CustomCogVideoXTransformer3DModel
 from cogvideo_controlnet import CogVideoXControlnet
 
@@ -124,7 +125,7 @@ def generate_video(
     controlnet.load_state_dict(trained_checkpoint['state_dict'])
     print("INFO: Successfully loaded trained weights into ControlNet.")
 
-    pipe = ControlnetCogVideoXPipeline(
+    pipe = CogVideoXImageToVideoControlnetPipeline(
         tokenizer=tokenizer,
         text_encoder=text_encoder,
         transformer=transformer,
@@ -144,8 +145,8 @@ def generate_video(
     # We recommend using `CogVideoXDDIMScheduler` for CogVideoX-2B.
     # using `CogVideoXDPMScheduler` for CogVideoX-5B / CogVideoX-5B-I2V.
 
-    # pipe.scheduler = CogVideoXDDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
-    pipe.scheduler = CogVideoXDPMScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
+    pipe.scheduler = CogVideoXDDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
+    # pipe.scheduler = CogVideoXDPMScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
 
     # 3. Enable CPU offload for the model.
     # turn off if you have multiple GPUs or enough GPU memory(such as H100) and it will cost less time in inference
@@ -163,6 +164,7 @@ def generate_video(
     # This is the default value for 6 seconds video and 8 fps and will plus 1 frame for the first frame and 49 frames.
     video_generate = pipe(
         prompt=prompt,
+        image=video[0],
         controlnet_frames=controlnet_frames,  # The path of the image to be used as the background of the video
         num_videos_per_prompt=num_videos_per_prompt,  # Number of videos to generate per prompt
         num_inference_steps=num_inference_steps,  # Number of inference steps
