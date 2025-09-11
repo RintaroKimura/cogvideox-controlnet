@@ -10,3 +10,4 @@ conda activate cogvideox_final
 python your_script.py
 
 ## 備考
+特になし。
