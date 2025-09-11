@@ -44,13 +44,14 @@ from diffusers.optimization import get_scheduler
 from diffusers.pipelines.cogvideo.pipeline_cogvideox import get_resize_crop_region_for_grid
 from diffusers.training_utils import (
     cast_training_params,
-    clear_objs_and_retain_memory,
+    # clear_objs_and_retain_memory,
 )
 from diffusers.utils import check_min_version, export_to_video, is_wandb_available
 from diffusers.utils.hub_utils import load_or_create_model_card, populate_model_card
 from diffusers.utils.torch_utils import is_compiled_module
 
 from controlnet_datasets import OpenvidControlnetDataset
+from controlnet_datasets import ColorizationDataset
 from controlnet_pipeline import ControlnetCogVideoXPipeline
 from cogvideo_transformer import CustomCogVideoXTransformer3DModel
 from cogvideo_controlnet import CogVideoXControlnet
@@ -882,7 +883,7 @@ def main(args):
     optimizer = get_optimizer(args, params_to_optimize, use_deepspeed=use_deepspeed_optimizer)
 
     # Dataset and DataLoader
-    train_dataset = OpenvidControlnetDataset(
+    train_dataset = ColorizationDataset(
         video_root_dir=args.video_root_dir,
         csv_path=args.csv_path,
         image_size=(args.height, args.width), 
@@ -995,7 +996,7 @@ def main(args):
 
     # For DeepSpeed training
     model_config = transformer.module.config if hasattr(transformer, "module") else transformer.config
-
+    
     for epoch in range(first_epoch, args.num_train_epochs):
         controlnet.train()
 
@@ -1149,6 +1150,13 @@ def main(args):
                         )
     
     accelerator.wait_for_everyone()
+    # Save the final trained model
+    if accelerator.is_main_process:
+        logger.info("***** Saving final model *****")
+        controlnet_model = unwrap_model(controlnet)
+        final_save_path = os.path.join(args.output_dir, "pytorch_model.pt")
+        torch.save({'state_dict': controlnet_model.state_dict()}, final_save_path)
+        logger.info(f"Final model saved to {final_save_path}")
     accelerator.end_training()
 
 

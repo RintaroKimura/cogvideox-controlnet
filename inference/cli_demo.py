@@ -16,6 +16,7 @@ Additional options are available to specify the guidance scale, number of infere
 import sys
 sys.path.append('..')
 import argparse
+from PIL import Image
 
 import torch
 from transformers import T5EncoderModel, T5Tokenizer
@@ -32,15 +33,22 @@ from cogvideo_transformer import CustomCogVideoXTransformer3DModel
 from cogvideo_controlnet import CogVideoXControlnet
 
 
+# inference/cli_demo.py
 def init_controlnet_processor(controlnet_type):
-    if controlnet_type in ['canny', 'lineart']:
+    if controlnet_type == 'grayscale':
+        return controlnet_mapping[controlnet_type]
+    if controlnet_type in ['canny']:
         return controlnet_mapping[controlnet_type]()
     return controlnet_mapping[controlnet_type].from_pretrained('lllyasviel/Annotators').to(device='cuda')
 
 
+def to_grayscale(pil_image):
+    return pil_image.convert("L").convert("RGB")
+
 controlnet_mapping = {
     'hed': HEDdetector,
     'canny': CannyDetector,
+    'grayscale': to_grayscale,
 }
 
 
@@ -103,9 +111,18 @@ def generate_video(
     scheduler = CogVideoXDDIMScheduler.from_pretrained(
         base_model_path, subfolder="scheduler"
     )
-    controlnet = CogVideoXControlnet.from_pretrained(
-        controlnet_model_path
+
+    print("INFO: Creating a blank ControlNet model structure for 2b model.")
+    controlnet = CogVideoXControlnet(
+        num_layers=8,
+        downscale_coef=8,
+        in_channels=3,
+        num_attention_heads=30
     )
+    print(f"INFO: Loading trained weights from: {controlnet_model_path}")
+    trained_checkpoint = torch.load(controlnet_model_path, map_location='cpu')
+    controlnet.load_state_dict(trained_checkpoint['state_dict'])
+    print("INFO: Successfully loaded trained weights into ControlNet.")
 
     pipe = ControlnetCogVideoXPipeline(
         tokenizer=tokenizer,

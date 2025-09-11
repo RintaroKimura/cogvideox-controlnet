@@ -14,6 +14,12 @@ from torch.utils.data.dataset import Dataset
 from controlnet_aux import CannyDetector, HEDdetector
 
 
+class GrayscaleProcessor:
+    def __call__(self, input_image):
+        grayscale_image = input_image.convert("L").convert("RGB")
+        return grayscale_image
+
+
 def unpack_mm_params(p):
     if isinstance(p, (tuple, list)):
         return p[0], p[1]
@@ -150,4 +156,56 @@ class OpenvidControlnetDataset(BaseClass):
         video_name = item['path']
         video_path = os.path.join(self.video_root_dir, video_name)
         pixel_values, controlnet_video = self.load_video_info(video_path)
+        return pixel_values, caption, controlnet_video
+    
+
+class ColorizationDataset(BaseClass):
+    """
+    動画のカラー化ファインチューニング用に完全に再定義したデータセットクラス。
+    load_video_infoをオーバーライドしてデータ型の不整合を解決。
+    """
+    def __init__(self, csv_path, video_root_dir, controlnet_type, image_size, sample_n_frames, stride, hflip_p, **kwargs):
+        self.height, self.width = unpack_mm_params(image_size)
+        self.stride_min, self.stride_max = unpack_mm_params(stride)
+        self.video_root_dir = video_root_dir
+        self.sample_n_frames = sample_n_frames
+        self.hflip_p = hflip_p
+
+        self.controlnet_processor = GrayscaleProcessor()
+
+        with open(csv_path, 'r') as f:
+            self.video_paths = [line.strip() for line in f.readlines() if line.strip()]
+        self.length = len(self.video_paths)
+        print(f"✅ ColorizationDataset: Found {self.length} videos for training.")
+
+    def load_video_info(self, video_path):
+        video_reader = VideoReader(video_path)
+        video_length = len(video_reader)
+        
+        sample_stride = random.randint(self.stride_min, self.stride_max)
+        clip_length = min(video_length, (self.sample_n_frames - 1) * sample_stride + 1)
+        
+        start_idx   = random.randint(0, max(0, video_length - clip_length))
+        batch_index = np.linspace(start_idx, start_idx + clip_length - 1, self.sample_n_frames, dtype=int)
+        
+        np_video = video_reader.get_batch(batch_index).asnumpy()
+        
+        pixel_values = torch.from_numpy(np_video).permute(0, 3, 1, 2).contiguous()
+        pixel_values = pixel_values / 127.5 - 1
+        del video_reader
+        
+        controlnet_frames_pil = [Image.fromarray(x) for x in np_video]
+        controlnet_video_processed = [self.controlnet_processor(img) for img in controlnet_frames_pil]
+        controlnet_video_np = [np.array(img) for img in controlnet_video_processed]
+        controlnet_video = torch.from_numpy(np.stack(controlnet_video_np)).permute(0, 3, 1, 2).contiguous()
+        
+        controlnet_video = controlnet_video / 127.5 - 1
+        
+        return pixel_values, controlnet_video
+
+    def get_batch(self, idx):
+        video_path = self.video_paths[idx]
+        caption = "a high-quality, realistic, color video."
+        pixel_values, controlnet_video = self.load_video_info(video_path)
+        
         return pixel_values, caption, controlnet_video

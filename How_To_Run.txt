@@ -1,0 +1,13 @@
+python -m inference.cli_demo \
+
+    --video_path "resources/2025-02-25 01-11-14.mp4" \
+
+    --prompt "" \
+
+    --controlnet_type "grayscale" \
+
+    --base_model_path "THUDM/CogVideoX-2b" \
+
+    --controlnet_model_path "models/finetuned-colorization-ucf101/checkpoint-400.pt" \
+
+    --output_path "./colorized_result.mp4"
