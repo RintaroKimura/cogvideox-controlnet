@@ -31,9 +31,9 @@ accelerate launch --config_file accelerate_config_machine_single.yaml --multi_gp
   --train_batch_size 1 \
   --dataloader_num_workers 0 \
   --num_train_epochs 5 \
-  --checkpointing_steps 500 \
+  --checkpointing_steps 400 \
   --gradient_accumulation_steps 2 \
-  --learning_rate 2e-6 \
+  --learning_rate 5e-7 \
   --lr_scheduler cosine_with_restarts \
   --lr_warmup_steps 250 \
   --lr_num_cycles 1 \

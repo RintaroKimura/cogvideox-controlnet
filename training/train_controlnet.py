@@ -805,7 +805,7 @@ def main(args):
 
     # We only train the additional adapter controlnet layers
     text_encoder.requires_grad_(False)
-    transformer.requires_grad_(False)
+    # transformer.requires_grad_(False)
     vae.requires_grad_(False)
     controlnet.requires_grad_(True)
 
