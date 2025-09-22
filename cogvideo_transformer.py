@@ -22,7 +22,16 @@ class CustomCogVideoXTransformer3DModel(CogVideoXTransformer3DModel):
         batch_size, num_frames, channels, height, width = hidden_states.shape
 
         if start_frame is not None:
-            hidden_states = torch.cat([start_frame, hidden_states], dim=2)
+            if start_frame.shape != hidden_states.shape:
+                raise ValueError(f"start_frame {start_frame.shape} must match hidden_states {hidden_states.shape}")
+            if start_frame.dtype != hidden_states.dtype:
+                start_frame = start_frame.to(hidden_states.dtype)
+            if start_frame.device != hidden_states.device:
+                start_frame = start_frame.to(hidden_states.device)
+
+            hidden_states = hidden_states + start_frame
+
+        
         # 1. Time embedding
         timesteps = timestep
         t_emb = self.time_proj(timesteps)

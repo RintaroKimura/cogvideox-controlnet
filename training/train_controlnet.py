@@ -805,7 +805,7 @@ def main(args):
 
     # We only train the additional adapter controlnet layers
     text_encoder.requires_grad_(False)
-    # transformer.requires_grad_(False)
+    transformer.requires_grad_(False)
     vae.requires_grad_(False)
     controlnet.requires_grad_(True)
 
@@ -1077,7 +1077,23 @@ def main(args):
                 while len(weights.shape) < len(model_pred.shape):
                     weights = weights.unsqueeze(-1)
 
-                target = model_input
+                target = scheduler.get_velocity(noise, model_input, timesteps)
+
+                # alpha = scheduler.alphas_cumprod[timesteps].to(model_output.dtype)
+                # while len(alpha.shape) < len(model_output.shape):
+                #     alpha = alpha.unsqueeze(-1)
+                # sqrt_alpha = alpha.sqrt()
+                # sqrt_one_minus_alpha = (1 - alpha).sqrt()
+                # pred_x0 = (noisy_model_input - sqrt_one_minus_alpha * model_output) / sqrt_alpha
+
+                # model_pred = pred_x0
+                # target = model_input
+
+                # weights = None
+                # if weights is None:
+                #     loss = torch.mean(((model_pred - target) ** 2).reshape(batch_size, -1), dim=1).mean()
+                # else:
+                #     loss = torch.mean((weights * (model_pred - target) ** 2).reshape(batch_size, -1), dim=1).mean()
 
                 loss = torch.mean((weights * (model_pred - target) ** 2).reshape(batch_size, -1), dim=1)
                 loss = loss.mean()

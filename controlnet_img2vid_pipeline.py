@@ -802,7 +802,16 @@ class CogVideoXImageToVideoControlnetPipeline(DiffusionPipeline, CogVideoXLoraLo
         )
 
         # 9. Create ofs embeds if required
-        ofs_emb = None if self.transformer.config.ofs_embed_dim is None else latents.new_full((1,), fill_value=2.0)
+        # ofs_emb = None if self.transformer.config.ofs_embed_dim is None else latents.new_full((1,), fill_value=2.0)
+
+        # if do_classifier_free_guidance:
+        #     start_frame_for_model = torch.cat([image_latents, image_latents], dim=0)
+        # else:
+        #     start_frame_for_model = image_latents
+
+        # start_frame_for_model = start_frame_for_model.to(dtype=latent_model_input.dtype, device=latent_model_input.device)
+        # assert start_frame_for_model.shape == latent_model_input.shape, (start_frame_for_model.shape, latent_model_input.shape)
+        # assert latent_model_input.shape[2] == 16
 
         # 10. Denoising loop
         num_warmup_steps = max(len(timesteps) - num_inference_steps * self.scheduler.order, 0)
@@ -811,22 +820,24 @@ class CogVideoXImageToVideoControlnetPipeline(DiffusionPipeline, CogVideoXLoraLo
             # for DPM-solver++
             old_pred_original_sample = None
             for i, t in enumerate(timesteps):
-                if self.interrupt:
-                    continue
-
-                latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
+                latent_model_input = torch.cat([latents, latents], dim=0) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-                # latent_image_input = torch.cat([image_latents] * 2) if do_classifier_free_guidance else image_latents
-                # latent_model_input = torch.cat([latent_model_input, latent_image_input], dim=2)
 
-                # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
+                # ここで最初に timestep を作る（以後はこれを使う）
                 timestep = t.expand(latent_model_input.shape[0])
 
+                # 開始フレーム（先頭以外は0に）を準備 → CFG複製 → dtype/device合わせ → 同じ t でスケーリング
+                start_frame_for_model = torch.cat([image_latents, image_latents], dim=0) if do_classifier_free_guidance else image_latents
+                if start_frame_for_model.shape[1] > 1:
+                    start_frame_for_model = start_frame_for_model.clone()
+                    start_frame_for_model[:, 1:] = 0
+                start_frame_for_model = start_frame_for_model.to(dtype=latent_model_input.dtype, device=latent_model_input.device)
+                start_frame_for_model = self.scheduler.scale_model_input(start_frame_for_model, t)
+
+                # ControlNet（必要ステップのみ）
                 current_sampling_percent = i / len(timesteps)
-                
                 controlnet_states = []
                 if (controlnet_guidance_start <= current_sampling_percent < controlnet_guidance_end):
-                    # extract controlnet hidden state
                     controlnet_states = self.controlnet(
                         hidden_states=latent_model_input[:, :, :16, :, :],
                         encoder_hidden_states=prompt_embeds,
@@ -839,15 +850,14 @@ class CogVideoXImageToVideoControlnetPipeline(DiffusionPipeline, CogVideoXLoraLo
                         controlnet_states = [x.to(dtype=self.transformer.dtype) for x in controlnet_states]
                     else:
                         controlnet_states = controlnet_states.to(dtype=self.transformer.dtype)
-                        
-                # predict noise model_output
+
+                # Transformer（1回だけ呼ぶ）
                 noise_pred = self.transformer(
                     hidden_states=latent_model_input,
                     encoder_hidden_states=prompt_embeds,
                     timestep=timestep,
-                    # ofs=ofs_emb,
+                    start_frame=start_frame_for_model,
                     image_rotary_emb=image_rotary_emb,
-                    # attention_kwargs=attention_kwargs,
                     controlnet_states=controlnet_states,
                     controlnet_weights=controlnet_weights,
                     return_dict=False,

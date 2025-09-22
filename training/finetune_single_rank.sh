@@ -26,7 +26,7 @@ accelerate launch --config_file accelerate_config_machine_single.yaml --multi_gp
   --controlnet_transformer_num_layers 8 \
   --controlnet_input_channels 3 \
   --downscale_coef 8 \
-  --controlnet_weights 0.25 \
+  --controlnet_weights 1.0 \
   --init_from_transformer \
   --train_batch_size 1 \
   --dataloader_num_workers 0 \
